@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>QUÉ NOTA · Prueba de conexión</title>
+  <style>
+    :root{color-scheme:dark;--bg:#071426;--panel:#10233d;--blue:#1769aa;--orange:#ff8a24;--text:#f4f7fb;--muted:#b8c6d8;--line:#29415e}
+    *{box-sizing:border-box}body{margin:0;background:linear-gradient(160deg,#071426,#102d4b);font-family:system-ui,Arial,sans-serif;color:var(--text);min-height:100vh;padding:22px}
+    main{max-width:480px;margin:25px auto}.brand{text-align:center;margin-bottom:22px}.brand h1{margin:0;color:#fff;font-size:34px;letter-spacing:1px}.brand p{margin:5px 0;color:var(--muted)}
+    .card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:20px;margin:14px 0;box-shadow:0 12px 32px #0004}
+    h2{font-size:20px;margin:0 0 14px}label{display:block;font-size:14px;color:var(--muted);margin:12px 0 6px}
+    input{width:100%;padding:13px;border-radius:10px;border:1px solid var(--line);background:#071426;color:white;font-size:16px}
+    button{width:100%;border:0;border-radius:11px;padding:13px;font-size:16px;font-weight:700;margin-top:12px;cursor:pointer;background:var(--orange);color:#1b1b1b}
+    button.secondary{background:var(--blue);color:white}button:disabled{opacity:.55;cursor:not-allowed}
+    #status{white-space:pre-wrap;line-height:1.45;color:var(--muted);font-size:14px}
+    .small{font-size:12px;color:var(--muted);line-height:1.5}.hidden{display:none}.ok{color:#8ee6b0!important}.err{color:#ffaaa5!important}
+  </style>
+</head>
+<body>
+<main>
+  <header class="brand"><h1>QUÉ NOTA</h1><p>Comprá · Vendé · Conectá</p></header>
+
+  <section class="card">
+    <h2>Crear cuenta de comprador</h2>
+    <label for="name">Nombre completo</label>
+    <input id="name" autocomplete="name" maxlength="80" placeholder="Tu nombre">
+    <label for="email">Correo electrónico</label>
+    <input id="email" type="email" autocomplete="email" placeholder="tunombre@correo.com">
+    <label for="password">Contraseña (mínimo 6 caracteres)</label>
+    <input id="password" type="password" autocomplete="new-password" minlength="6" placeholder="Mínimo 6 caracteres">
+    <button id="register">Crear cuenta</button>
+  </section>
+
+  <section class="card">
+    <h2>Iniciar sesión</h2>
+    <label for="loginEmail">Correo electrónico</label>
+    <input id="loginEmail" type="email" autocomplete="username" placeholder="tunombre@correo.com">
+    <label for="loginPassword">Contraseña</label>
+    <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Tu contraseña">
+    <button class="secondary" id="login">Entrar</button>
+  </section>
+
+  <section class="card">
+    <h2>Estado de conexión</h2>
+    <p id="status">Conectando con Firebase…</p>
+    <button id="logout" class="secondary hidden">Cerrar sesión</button>
+    <p class="small">Esta página es solo una prueba separada. No reemplaza todavía la aplicación principal. No ingresés información sensible ni fotografías de documentos.</p>
+  </section>
+</main>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/13.4.0/firebase-app.js";
+  import {
+    getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+    onAuthStateChanged, signOut, updateProfile
+  } from "https://www.gstatic.com/firebasejs/13.4.0/firebase-auth.js";
+  import {
+    getFirestore, doc, setDoc, serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/13.4.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCSU6AnsshRRw1b7xaHp4FCRzz9NoJ2eSk",
+    authDomain: "live-store-8050a.firebaseapp.com",
+    projectId: "live-store-8050a",
+    storageBucket: "live-store-8050a.firebasestorage.app",
+    messagingSenderId: "446314820160",
+    appId: "1:446314820160:web:5a1700350bf30973b2e5a5"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+  const statusEl = document.getElementById("status");
+  const logoutBtn = document.getElementById("logout");
+  const registerBtn = document.getElementById("register");
+  const loginBtn = document.getElementById("login");
+
+  function show(message, type="") {
+    statusEl.textContent = message;
+    statusEl.className = type;
+  }
+  function friendlyError(error) {
+    const messages = {
+      "auth/email-already-in-use":"Ese correo ya tiene una cuenta. Probá iniciar sesión.",
+      "auth/invalid-email":"El correo no tiene un formato válido.",
+      "auth/weak-password":"La contraseña debe tener al menos 6 caracteres.",
+      "auth/invalid-credential":"El correo o la contraseña no son correctos.",
+      "auth/network-request-failed":"No se pudo conectar. Revisá tu internet e intentá de nuevo.",
+      "auth/unauthorized-domain":"Firebase todavía no autoriza el dominio de esta página."
+    };
+    return messages[error.code] || ("Firebase respondió: " + error.message);
+  }
+
+  registerBtn.addEventListener("click", async () => {
+    const name = document.getElementById("name").value.trim();
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+    if (!name || !email || password.length < 6) {
+      show("Completá tu nombre, un correo válido y una contraseña de al menos 6 caracteres.", "err");
+      return;
+    }
+    registerBtn.disabled = true;
+    show("Creando tu cuenta…");
+    try {
+      const credential = await createUserWithEmailAndPassword(auth, email, password);
+      await updateProfile(credential.user, { displayName: name });
+      await setDoc(doc(db, "usuarios", credential.user.uid), {
+        nombre: name,
+        correo: email,
+        rol: "comprador",
+        estado: "activo",
+        solicitud_vendedor: false,
+        rol_vendedor: "no_aprobado",
+        fecha_registro: serverTimestamp()
+      });
+      show("¡Cuenta creada! Ya estás conectado a QUÉ NOTA con Firebase.", "ok");
+    } catch (error) {
+      show(friendlyError(error), "err");
+    } finally {
+      registerBtn.disabled = false;
+    }
+  });
+
+  loginBtn.addEventListener("click", async () => {
+    const email = document.getElementById("loginEmail").value.trim();
+    const password = document.getElementById("loginPassword").value;
+    if (!email || !password) {
+      show("Escribí tu correo y contraseña.", "err");
+      return;
+    }
+    loginBtn.disabled = true;
+    show("Iniciando sesión…");
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      show("Sesión iniciada correctamente.", "ok");
+    } catch (error) {
+      show(friendlyError(error), "err");
+    } finally {
+      loginBtn.disabled = false;
+    }
+  });
+
+  logoutBtn.addEventListener("click", async () => {
+    try {
+      await signOut(auth);
+      show("Cerraste sesión correctamente.");
+    } catch (error) {
+      show(friendlyError(error), "err");
+    }
+  });
+
+  onAuthStateChanged(auth, user => {
+    if (user) {
+      logoutBtn.classList.remove("hidden");
+      show("Conectado como: " + (user.email || "usuario") + "\nID de usuario: " + user.uid, "ok");
+    } else {
+      logoutBtn.classList.add("hidden");
+      show("Firebase está listo. Podés crear una cuenta de prueba o iniciar sesión.");
+    }
+  });
+</script>
+</body>
+</html>
